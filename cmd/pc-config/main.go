@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/byuoitav/pc-config/couch"
 	"github.com/byuoitav/pc-config/handlers"
 	"github.com/labstack/echo"
 	"github.com/spf13/pflag"
@@ -18,10 +19,18 @@ func main() {
 	var (
 		port     int
 		logLevel int8
+
+		dbAddress  string
+		dbUsername string
+		dbPassword string
 	)
 
 	pflag.IntVarP(&port, "port", "P", 8080, "port to run the server on")
 	pflag.Int8VarP(&logLevel, "log-level", "L", 0, "level to log at. refer to https://godoc.org/go.uber.org/zap/zapcore#Level for options")
+
+	pflag.StringVar(&dbAddress, "db-address", "", "address of the database")
+	pflag.StringVar(&dbUsername, "db-username", "", "username for the database")
+	pflag.StringVar(&dbPassword, "db-password", "", "password for the database")
 	pflag.Parse()
 
 	// build the logger
@@ -57,7 +66,19 @@ func main() {
 
 	sugared := plain.Sugar()
 
-	handlers := handlers.Handlers{}
+	if len(dbAddress) == 0 || len(dbUsername) == 0 || len(dbPassword) == 0 {
+		sugared.Fatalf("db address, username, and password *must* be set")
+	}
+
+	configService := &couch.ConfigService{
+		Address:  dbAddress,
+		Username: dbUsername,
+		Password: dbPassword,
+	}
+
+	handlers := handlers.Handlers{
+		ConfigService: configService,
+	}
 
 	e := echo.New()
 

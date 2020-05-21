@@ -10,7 +10,7 @@ import (
 )
 
 type Handlers struct {
-	CameraService pcconfig.ConfigService
+	ConfigService pcconfig.ConfigService
 }
 
 func (h *Handlers) ConfigForPC(c echo.Context) error {
@@ -22,7 +22,7 @@ func (h *Handlers) ConfigForPC(c echo.Context) error {
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
 	defer cancel()
 
-	cameras, err := h.CameraService.CamerasForPC(ctx, "")
+	cameras, err := h.ConfigService.CamerasForPC(ctx, hostname)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
