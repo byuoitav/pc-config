@@ -19,6 +19,8 @@ type Camera struct {
 	ZoomOut  string `json:"zoomOut"`
 	ZoomStop string `json:"zoomStop"`
 
+	Stream string `json:"stream"`
+
 	Presets []CameraPreset `json:"presets"`
 }
 
