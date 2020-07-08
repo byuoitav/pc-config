@@ -2,8 +2,18 @@ package pcconfig
 
 import "context"
 
+// ConfigService talks the a datastore to get configuration information.
 type ConfigService interface {
-	CamerasForPC(ctx context.Context, hostname string) ([]Camera, error)
+	// RoomAndPreset returns the room and preset associated with a PC's hostname
+	RoomAndPreset(ctx context.Context, hostname string) (string, string, error)
+
+	// Cameras returns the camera configurations for the given room and preset
+	Cameras(ctx context.Context, room, preset string) ([]Camera, error)
+}
+
+// ControlKeyService gets the control key for a room
+type ControlKeyService interface {
+	ControlKey(ctx context.Context, room, preset string) (string, error)
 }
 
 type Camera struct {

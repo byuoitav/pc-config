@@ -39,7 +39,7 @@ module "dev" {
   // required
   name           = "pc-config-dev"
   image          = "docker.pkg.github.com/byuoitav/pc-config/pc-config-dev"
-  image_version  = "70fb49d"
+  image_version  = "13fe972"
   container_port = 8080
   repo_url       = "https://github.com/byuoitav/pc-config"
 

@@ -2,52 +2,78 @@ package couch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	pcconfig "github.com/byuoitav/pc-config"
-	_ "github.com/go-kivik/couchdb/v4"
-	"github.com/go-kivik/kivik/v4"
+	_ "github.com/go-kivik/couchdb/v3"
+	"github.com/go-kivik/kivik/v3"
 )
 
-type ConfigService struct {
-	Address  string
-	Username string
-	Password string
+type configService struct {
+	client      *kivik.Client
+	uiConfigDB  string
+	pcMappingDB string
 }
 
-const (
-	_dbUIConfig  = "ui-configuration"
-	_dbPCMapping = "pc-mapping"
-)
-
-func (c *ConfigService) CamerasForPC(ctx context.Context, hostname string) ([]pcconfig.Camera, error) {
-	addr := fmt.Sprintf("https://%s:%s@%s", c.Username, c.Password, c.Address)
-	client, err := kivik.New("couch", addr)
+// New creates a new ConfigService, created a couchdb client pointed at url.
+func New(ctx context.Context, url string, opts ...Option) (pcconfig.ConfigService, error) {
+	client, err := kivik.New("couch", url)
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to couch: %w", err)
+		return nil, fmt.Errorf("unable to build client: %w", err)
 	}
 
-	mappingDB := client.DB(ctx, _dbPCMapping)
-	row := mappingDB.Get(ctx, hostname)
+	return NewWithClient(ctx, client, opts...)
+}
 
-	var pcMapping pcMapping
-	if err := row.ScanDoc(&pcMapping); err != nil {
-		return nil, fmt.Errorf("unable to get pc mapping for %q: %w", hostname, err)
+// NewWithClient creates a new ConfigService using the given client.
+func NewWithClient(ctx context.Context, client *kivik.Client, opts ...Option) (pcconfig.ConfigService, error) {
+	options := options{
+		uiConfigDB:  _defaultUIConfigDB,
+		pcMappingDB: _defaultPCMappingDB,
 	}
 
-	uiConfigDB := client.DB(ctx, _dbUIConfig)
-	row = uiConfigDB.Get(ctx, pcMapping.UIConfig)
-
-	var uiConfig uiConfig
-	if err := row.ScanDoc(&uiConfig); err != nil {
-		return nil, fmt.Errorf("unable to get pc mapping: %w", err)
+	for _, o := range opts {
+		o.apply(&options)
 	}
 
-	for _, cg := range uiConfig.ControlGroups {
-		if cg.ID == pcMapping.ControlGroup {
+	if options.authFunc != nil {
+		if err := client.Authenticate(ctx, options.authFunc); err != nil {
+			return nil, fmt.Errorf("unable to authenticate: %w", err)
+		}
+	}
+
+	return &configService{
+		client:      client,
+		uiConfigDB:  options.uiConfigDB,
+		pcMappingDB: options.pcMappingDB,
+	}, nil
+}
+
+func (c *configService) RoomAndPreset(ctx context.Context, hostname string) (string, string, error) {
+	var mapping pcMapping
+
+	db := c.client.DB(ctx, c.pcMappingDB)
+	if err := db.Get(ctx, hostname).ScanDoc(&mapping); err != nil {
+		return "", "", fmt.Errorf("unable to get/scan pc mapping: %w", err)
+	}
+
+	return mapping.UIConfig, mapping.ControlGroup, nil
+}
+
+func (c *configService) Cameras(ctx context.Context, room, preset string) ([]pcconfig.Camera, error) {
+	var config uiConfig
+
+	db := c.client.DB(ctx, c.uiConfigDB)
+	if err := db.Get(ctx, room).ScanDoc(&config); err != nil {
+		return []pcconfig.Camera{}, fmt.Errorf("unable to get/scan ui config: %w", err)
+	}
+
+	for _, cg := range config.ControlGroups {
+		if cg.ID == preset {
 			return cg.Cameras, nil
 		}
 	}
 
-	return nil, fmt.Errorf("no control group matching %q was found in %q", pcMapping.ControlGroup, pcMapping.UIConfig)
+	return []pcconfig.Camera{}, errors.New("no matching control group found")
 }
