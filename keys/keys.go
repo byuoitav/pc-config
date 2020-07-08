@@ -16,8 +16,8 @@ type keyResponse struct {
 	ControlKey string `json:"ControlKey"`
 }
 
-func (c *ControlKeyService) ControlKey(ctx context.Context, room, preset string) (string, error) {
-	url := fmt.Sprintf("https://%s/%s %s/getControlKey", c.Address, room, preset)
+func (c *ControlKeyService) ControlKey(ctx context.Context, room, controlGroup string) (string, error) {
+	url := fmt.Sprintf("https://%s/%s %s/getControlKey", c.Address, room, controlGroup)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

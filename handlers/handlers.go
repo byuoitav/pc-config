@@ -20,9 +20,9 @@ func (h *Handlers) ConfigForPC(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
-	room, preset, err := h.ConfigService.RoomAndPreset(ctx, c.Param("hostname"))
+	room, cg, err := h.ConfigService.RoomAndControlGroup(ctx, c.Param("hostname"))
 	if err != nil {
-		c.String(http.StatusInternalServerError, fmt.Sprintf("unable to get room/preset: %s", err))
+		c.String(http.StatusInternalServerError, fmt.Sprintf("unable to get room/controlGroup: %s", err))
 		return
 	}
 
@@ -32,14 +32,14 @@ func (h *Handlers) ConfigForPC(c *gin.Context) {
 	// get the cameras
 	g.Go(func() error {
 		var err error
-		config.Cameras, err = h.ConfigService.Cameras(ctx, room, preset)
+		config.Cameras, err = h.ConfigService.Cameras(ctx, room, cg)
 		return err
 	})
 
 	// get the control key
 	g.Go(func() error {
 		var err error
-		config.ControlKey, err = h.ControlKeyService.ControlKey(ctx, room, preset)
+		config.ControlKey, err = h.ControlKeyService.ControlKey(ctx, room, cg)
 		return err
 	})
 

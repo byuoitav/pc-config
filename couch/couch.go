@@ -50,7 +50,7 @@ func NewWithClient(ctx context.Context, client *kivik.Client, opts ...Option) (p
 	}, nil
 }
 
-func (c *configService) RoomAndPreset(ctx context.Context, hostname string) (string, string, error) {
+func (c *configService) RoomAndControlGroup(ctx context.Context, hostname string) (string, string, error) {
 	var mapping pcMapping
 
 	db := c.client.DB(ctx, c.pcMappingDB)
@@ -61,7 +61,7 @@ func (c *configService) RoomAndPreset(ctx context.Context, hostname string) (str
 	return mapping.UIConfig, mapping.ControlGroup, nil
 }
 
-func (c *configService) Cameras(ctx context.Context, room, preset string) ([]pcconfig.Camera, error) {
+func (c *configService) Cameras(ctx context.Context, room, controlGroup string) ([]pcconfig.Camera, error) {
 	var config uiConfig
 
 	db := c.client.DB(ctx, c.uiConfigDB)
@@ -70,7 +70,7 @@ func (c *configService) Cameras(ctx context.Context, room, preset string) ([]pcc
 	}
 
 	for _, cg := range config.ControlGroups {
-		if cg.ID == preset {
+		if cg.ID == controlGroup {
 			return cg.Cameras, nil
 		}
 	}

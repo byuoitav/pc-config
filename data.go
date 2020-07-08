@@ -4,16 +4,16 @@ import "context"
 
 // ConfigService talks the a datastore to get configuration information.
 type ConfigService interface {
-	// RoomAndPreset returns the room and preset associated with a PC's hostname
-	RoomAndPreset(ctx context.Context, hostname string) (string, string, error)
+	// RoomAndControlGroup returns the room and control group associated with a PC's hostname
+	RoomAndControlGroup(ctx context.Context, hostname string) (string, string, error)
 
-	// Cameras returns the camera configurations for the given room and preset
-	Cameras(ctx context.Context, room, preset string) ([]Camera, error)
+	// Cameras returns the camera configurations for the given room and control group
+	Cameras(ctx context.Context, room, controlGroup string) ([]Camera, error)
 }
 
 // ControlKeyService gets the control key for a room
 type ControlKeyService interface {
-	ControlKey(ctx context.Context, room, preset string) (string, error)
+	ControlKey(ctx context.Context, room, controlGroup string) (string, error)
 }
 
 type Camera struct {
