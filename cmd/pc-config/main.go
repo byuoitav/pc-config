@@ -11,6 +11,7 @@ import (
 
 	"github.com/byuoitav/pc-config/couch"
 	"github.com/byuoitav/pc-config/handlers"
+	"github.com/byuoitav/pc-config/keys"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
@@ -26,6 +27,8 @@ func main() {
 		dbUsername string
 		dbPassword string
 		dbInsecure bool
+
+		keyServiceAddr string
 	)
 
 	pflag.IntVarP(&port, "port", "P", 8080, "port to run the server on")
@@ -34,6 +37,7 @@ func main() {
 	pflag.StringVar(&dbUsername, "db-username", "", "database username")
 	pflag.StringVar(&dbPassword, "db-password", "", "database password")
 	pflag.BoolVar(&dbInsecure, "db-insecure", false, "don't use SSL in database connection")
+	pflag.StringVar(&keyServiceAddr, "key-service", "control-keys.avs.byu.edu", "address of the control keys service")
 	pflag.Parse()
 
 	var level zapcore.Level
@@ -43,7 +47,7 @@ func main() {
 	}
 
 	config := zap.Config{
-		Level:       zap.NewAtomicLevelAt(zapcore.Level(logLevel)),
+		Level:       zap.NewAtomicLevelAt(level),
 		Development: false,
 		Sampling: &zap.SamplingConfig{
 			Initial:    100,
@@ -98,18 +102,33 @@ func main() {
 
 	handlers := handlers.Handlers{
 		ConfigService: cs,
+		ControlKeyService: &keys.ControlKeyService{
+			Address: keyServiceAddr,
+		},
 	}
 
 	r := gin.New()
 	r.Use(gin.Recovery())
 
-	debug := r.Group("/debug")
-	debug.GET("/healthz", func(c *gin.Context) {
-		c.String(http.StatusOK, "healthy")
+	// have to do this for compatability with previous versions
+	r.GET("/:hostname", func(c *gin.Context) {
+		if c.Param("hostname") == "healthz" {
+			c.String(http.StatusOK, "healthy")
+		} else {
+			c.String(http.StatusNotFound, "404 page not found")
+		}
 	})
+	r.GET("/:hostname/config", handlers.ConfigForPC)
+	// TODO i would prefer to do this below
+	/*
+		debug := r.Group("/debug")
+		debug.GET("/healthz", func(c *gin.Context) {
+			c.String(http.StatusOK, "healthy")
+		})
 
-	api := r.Group("/api")
-	api.GET("/:hostname/config", handlers.ConfigForPC)
+		api := r.Group("/api")
+		api.GET("/:hostname/config", handlers.ConfigForPC)
+	*/
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
