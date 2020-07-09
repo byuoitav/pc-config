@@ -119,16 +119,6 @@ func main() {
 		}
 	})
 	r.GET("/:hostname/config", handlers.ConfigForPC)
-	// TODO i would prefer to do this below
-	/*
-		debug := r.Group("/debug")
-		debug.GET("/healthz", func(c *gin.Context) {
-			c.String(http.StatusOK, "healthy")
-		})
-
-		api := r.Group("/api")
-		api.GET("/:hostname/config", handlers.ConfigForPC)
-	*/
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {

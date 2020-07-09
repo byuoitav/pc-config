@@ -228,7 +228,7 @@ func TestCameraInvalidConfig(t *testing.T) {
 					"displayName": "good name",
 					"presets": [
 						{
-							"displayName": false 
+							"displayName": false
 						}
 					]
 				}
