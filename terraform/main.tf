@@ -33,17 +33,13 @@ data "aws_ssm_parameter" "couch_password" {
   name = "/env/couch-password"
 }
 
-data "aws_ssm_parameter" "control_key_service_address" {
-  name = "/env/control-key-service-address"
-}
-
 module "dev" {
   source = "github.com/byuoitav/terraform//modules/kubernetes-deployment"
 
   // required
   name           = "pc-config-dev"
   image          = "docker.pkg.github.com/byuoitav/pc-config/pc-config-dev"
-  image_version  = "9ec9810"
+  image_version  = "86c3706"
   container_port = 8080
   repo_url       = "https://github.com/byuoitav/pc-config"
 
@@ -59,7 +55,7 @@ module "dev" {
     "--db-address", data.aws_ssm_parameter.couch_address.value,
     "--db-username", data.aws_ssm_parameter.couch_username.value,
     "--db-password", data.aws_ssm_parameter.couch_password.value,
-    "--key-service", data.aws_ssm_parameter.control_key_service_address.value,
+    "--key-service", "control-keys",
   ]
 }
 
