@@ -1,5 +1,6 @@
 package pcconfig
 
 type Config struct {
-	Cameras []Camera `json:"cameras"`
+	ControlKey string   `json:"controlKey"`
+	Cameras    []Camera `json:"cameras"`
 }

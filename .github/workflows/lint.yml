@@ -3,7 +3,6 @@ on:
     push:
         branches:
             - "**"
-            - "!master"
 
 jobs:
     lint:
@@ -36,4 +35,10 @@ jobs:
               uses: actions/checkout@v1
 
             - name: Run tests
-              run: make test
+              run: make test-cov
+
+            - name: Upload coverage report to CodeCov
+              uses: codecov/codecov-action@v1.0.0
+              with:
+                  token: ${{secrets.CODECOV_TOKEN}}
+                  file: ./coverage.txt

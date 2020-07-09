@@ -1,15 +1,18 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/byuoitav/pc-config/couch"
 	"github.com/byuoitav/pc-config/handlers"
-	"github.com/labstack/echo"
+	"github.com/byuoitav/pc-config/keys"
+	"github.com/gin-gonic/gin"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -18,24 +21,33 @@ import (
 func main() {
 	var (
 		port     int
-		logLevel int8
+		logLevel string
 
-		dbAddress  string
+		dbAddr     string
 		dbUsername string
 		dbPassword string
+		dbInsecure bool
+
+		keyServiceAddr string
 	)
 
 	pflag.IntVarP(&port, "port", "P", 8080, "port to run the server on")
-	pflag.Int8VarP(&logLevel, "log-level", "L", 0, "level to log at. refer to https://godoc.org/go.uber.org/zap/zapcore#Level for options")
-
-	pflag.StringVar(&dbAddress, "db-address", "", "address of the database")
-	pflag.StringVar(&dbUsername, "db-username", "", "username for the database")
-	pflag.StringVar(&dbPassword, "db-password", "", "password for the database")
+	pflag.StringVarP(&logLevel, "log-level", "L", "", "level to log at. refer to https://godoc.org/go.uber.org/zap/zapcore#Level for options")
+	pflag.StringVar(&dbAddr, "db-address", "", "database address")
+	pflag.StringVar(&dbUsername, "db-username", "", "database username")
+	pflag.StringVar(&dbPassword, "db-password", "", "database password")
+	pflag.BoolVar(&dbInsecure, "db-insecure", false, "don't use SSL in database connection")
+	pflag.StringVar(&keyServiceAddr, "key-service", "control-keys.avs.byu.edu", "address of the control keys service")
 	pflag.Parse()
 
-	// build the logger
+	var level zapcore.Level
+	if err := level.Set(logLevel); err != nil {
+		fmt.Printf("invalid log level: %s\n", err.Error())
+		os.Exit(1)
+	}
+
 	config := zap.Config{
-		Level:       zap.NewAtomicLevelAt(zapcore.Level(logLevel)),
+		Level:       zap.NewAtomicLevelAt(level),
 		Development: false,
 		Sampling: &zap.SamplingConfig{
 			Initial:    100,
@@ -47,7 +59,7 @@ func main() {
 			NameKey:        "logger",
 			CallerKey:      "caller",
 			MessageKey:     "msg",
-			StacktraceKey:  "stacktrace",
+			StacktraceKey:  "trace",
 			LineEnding:     zapcore.DefaultLineEnding,
 			EncodeLevel:    zapcore.LowercaseLevelEncoder,
 			EncodeTime:     zapcore.ISO8601TimeEncoder,
@@ -58,46 +70,66 @@ func main() {
 		ErrorOutputPaths: []string{"stderr"},
 	}
 
-	plain, err := config.Build()
+	log, err := config.Build()
 	if err != nil {
 		fmt.Printf("unable to build logger: %s", err)
 		os.Exit(1)
 	}
+	defer func() {
+		_ = log.Sync()
+	}()
 
-	sugared := plain.Sugar()
+	// context for setup
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	if len(dbAddress) == 0 || len(dbUsername) == 0 || len(dbPassword) == 0 {
-		sugared.Fatalf("db address, username, and password *must* be set")
+	// build the config service
+	if dbInsecure {
+		dbAddr = "http://" + dbAddr
+	} else {
+		dbAddr = "https://" + dbAddr
 	}
 
-	configService := &couch.ConfigService{
-		Address:  dbAddress,
-		Username: dbUsername,
-		Password: dbPassword,
+	var csOpts []couch.Option
+	if dbUsername != "" {
+		csOpts = append(csOpts, couch.WithBasicAuth(dbUsername, dbPassword))
+	}
+
+	cs, err := couch.New(ctx, dbAddr, csOpts...)
+	if err != nil {
+		log.Fatal("unable to create config service", zap.Error(err))
 	}
 
 	handlers := handlers.Handlers{
-		ConfigService: configService,
+		ConfigService: cs,
+		ControlKeyService: &keys.ControlKeyService{
+			Address: keyServiceAddr,
+		},
 	}
 
-	e := echo.New()
+	r := gin.New()
+	r.Use(gin.Recovery())
 
-	e.GET("/healthz", func(c echo.Context) error {
-		return c.String(http.StatusOK, "healthy")
+	// have to do this for compatability with previous versions
+	r.GET("/:hostname", func(c *gin.Context) {
+		if c.Param("hostname") == "healthz" {
+			c.String(http.StatusOK, "healthy")
+		} else {
+			c.String(http.StatusNotFound, "404 page not found")
+		}
 	})
-
-	e.GET("/:hostname/config", handlers.ConfigForPC)
+	r.GET("/:hostname/config", handlers.ConfigForPC)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
-		sugared.Fatalf("unable to bind listener: %s", err)
+		log.Fatal("unable to bind listener", zap.Error(err))
 	}
 
-	sugared.Infof("Starting server on %s", lis.Addr().String())
-	err = e.Server.Serve(lis)
+	log.Info("Starting server", zap.String("on", lis.Addr().String()))
+	err = r.RunListener(lis)
 	switch {
 	case errors.Is(err, http.ErrServerClosed):
 	case err != nil:
-		sugared.Fatalf("failed to serve: %s", err)
+		log.Fatal("failed to serve", zap.Error(err))
 	}
 }
