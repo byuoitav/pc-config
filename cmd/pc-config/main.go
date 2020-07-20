@@ -37,7 +37,7 @@ func main() {
 	pflag.StringVar(&dbUsername, "db-username", "", "database username")
 	pflag.StringVar(&dbPassword, "db-password", "", "database password")
 	pflag.BoolVar(&dbInsecure, "db-insecure", false, "don't use SSL in database connection")
-	pflag.StringVar(&keyServiceAddr, "key-service", "control-keys.avs.byu.edu", "address of the control keys service")
+	pflag.StringVar(&keyServiceAddr, "key-service", "control-keys.av.byu.edu", "address of the control keys service")
 	pflag.Parse()
 
 	var level zapcore.Level

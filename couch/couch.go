@@ -52,13 +52,24 @@ func NewWithClient(ctx context.Context, client *kivik.Client, opts ...Option) (p
 
 func (c *configService) RoomAndControlGroup(ctx context.Context, hostname string) (string, string, error) {
 	var mapping pcMapping
-
 	db := c.client.DB(ctx, c.pcMappingDB)
-	if err := db.Get(ctx, hostname).ScanDoc(&mapping); err != nil {
-		return "", "", fmt.Errorf("unable to get/scan pc mapping: %w", err)
+
+	for {
+		err := db.Get(ctx, hostname).ScanDoc(&mapping)
+		if err == nil {
+			return mapping.UIConfig, mapping.ControlGroup, nil
+		} else if err.Error() != "Not Found: missing" {
+			return "", "", fmt.Errorf("unable to get/scan pc mapping: %w", err)
+		}
+
+		hostname = hostname[:len(hostname)-1]
+
+		if hostname == "TEC-" {
+			break
+		}
 	}
 
-	return mapping.UIConfig, mapping.ControlGroup, nil
+	return "", "", fmt.Errorf("unable to get/scan pc mapping: Not Found: missing")
 }
 
 func (c *configService) Cameras(ctx context.Context, room, controlGroup string) ([]pcconfig.Camera, error) {
