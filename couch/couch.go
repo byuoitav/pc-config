@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	pcconfig "github.com/byuoitav/pc-config"
 	_ "github.com/go-kivik/couchdb/v3"
@@ -52,24 +53,28 @@ func NewWithClient(ctx context.Context, client *kivik.Client, opts ...Option) (p
 
 func (c *configService) RoomAndControlGroup(ctx context.Context, hostname string) (string, string, error) {
 	var mapping pcMapping
+	var err error
 	db := c.client.DB(ctx, c.pcMappingDB)
 
 	for {
-		err := db.Get(ctx, hostname).ScanDoc(&mapping)
-		if err == nil {
+		err = db.Get(ctx, hostname).ScanDoc(&mapping)
+		switch kivik.StatusCode(err) {
+		case 0:
 			return mapping.UIConfig, mapping.ControlGroup, nil
-		} else if err.Error() != "Not Found: missing" {
+		case http.StatusNotFound:
+			// try again
+		default:
 			return "", "", fmt.Errorf("unable to get/scan pc mapping: %w", err)
 		}
 
-		hostname = hostname[:len(hostname)-1]
-
-		if hostname == "TEC-" {
+		if len(hostname) < 4 {
 			break
 		}
+
+		hostname = hostname[:len(hostname)-1]
 	}
 
-	return "", "", fmt.Errorf("unable to get/scan pc mapping: Not Found: missing")
+	return "", "", fmt.Errorf("unable to get/scan pc mapping: %w", err)
 }
 
 func (c *configService) Cameras(ctx context.Context, room, controlGroup string) ([]pcconfig.Camera, error) {

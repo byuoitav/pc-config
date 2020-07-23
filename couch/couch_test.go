@@ -3,6 +3,7 @@ package couch
 import (
 	"context"
 	"errors"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 	pcconfig "github.com/byuoitav/pc-config"
 	"github.com/go-kivik/couchdb/v3"
+	"github.com/go-kivik/kivik/v3"
 	"github.com/go-kivik/kivikmock/v3"
 	"github.com/google/go-cmp/cmp"
 )
@@ -173,6 +175,111 @@ func TestRoomAndControlGroupError(t *testing.T) {
 	_, _, err = cs.RoomAndControlGroup(ctx, "TEC-ITB-1101")
 	if !errors.Is(err, expected) {
 		t.Fatalf("expected %q, got %q", expected, err)
+	}
+}
+
+func TestRoomAndControlGroupRetry(t *testing.T) {
+	client, mock := kivikmock.NewT(t)
+
+	kerr := &kivik.Error{
+		HTTPStatus: http.StatusNotFound,
+		Err:        errors.New("error"),
+	}
+
+	db := mock.NewDB()
+	mock.ExpectDB().WithName(_defaultPCMappingDB).WillReturn(db)
+	db.ExpectGet().WithDocID("TEC-ITB-1101-NEW").WillReturnError(kerr)
+	db.ExpectGet().WithDocID("TEC-ITB-1101-NE").WillReturnError(kerr)
+	db.ExpectGet().WithDocID("TEC-ITB-1101-N").WillReturnError(kerr)
+	db.ExpectGet().WithDocID("TEC-ITB-1101-").WillReturnError(kerr)
+	db.ExpectGet().WithDocID("TEC-ITB-1101").WillReturn(kivikmock.DocumentT(t, `{
+		"_id": "TEC-ITB-1101",
+		"uiConfig": "ITB-1101",
+		"controlGroup": "Test Control Group"
+	}`))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	cs, err := NewWithClient(ctx, client)
+	if err != nil {
+		t.Fatalf("unable to create config service: %s", err)
+	}
+
+	room, cg, err := cs.RoomAndControlGroup(ctx, "TEC-ITB-1101-NEW")
+	if err != nil {
+		t.Fatalf("failed to get room and control group: %s", err)
+	}
+
+	switch {
+	case room != "ITB-1101":
+		t.Fatalf("got wrong room: expected %q, got %q", "ITB-1101", room)
+	case cg != "Test Control Group":
+		t.Fatalf("got wrong control group: expected %q, got %q", "Test Control Group", cg)
+	}
+}
+
+func TestRoomAndControlGroupRetryFail(t *testing.T) {
+	client, mock := kivikmock.NewT(t)
+
+	kerr := &kivik.Error{
+		HTTPStatus: http.StatusNotFound,
+		Err:        errors.New("error"),
+	}
+	expected := errors.New("some error")
+
+	db := mock.NewDB()
+	mock.ExpectDB().WithName(_defaultPCMappingDB).WillReturn(db)
+	db.ExpectGet().WithDocID("TEC-ITB-1101-NEW").WillReturnError(kerr)
+	db.ExpectGet().WithDocID("TEC-ITB-1101-NE").WillReturnError(kerr)
+	db.ExpectGet().WithDocID("TEC-ITB-1101-N").WillReturnError(expected)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	cs, err := NewWithClient(ctx, client)
+	if err != nil {
+		t.Fatalf("unable to create config service: %s", err)
+	}
+
+	_, _, err = cs.RoomAndControlGroup(ctx, "TEC-ITB-1101-NEW")
+	if !errors.Is(err, expected) {
+		t.Fatalf("expected %q, got %q", expected, err)
+	}
+}
+
+func TestRoomAndControlGroupTooShort(t *testing.T) {
+	client, mock := kivikmock.NewT(t)
+
+	kerr := &kivik.Error{
+		HTTPStatus: http.StatusNotFound,
+		Err:        errors.New("error"),
+	}
+
+	db := mock.NewDB()
+	mock.ExpectDB().WithName(_defaultPCMappingDB).WillReturn(db)
+	db.ExpectGet().WithDocID("TEC-ITB-1101").WillReturnError(kerr)
+	db.ExpectGet().WithDocID("TEC-ITB-110").WillReturnError(kerr)
+	db.ExpectGet().WithDocID("TEC-ITB-11").WillReturnError(kerr)
+	db.ExpectGet().WithDocID("TEC-ITB-1").WillReturnError(kerr)
+	db.ExpectGet().WithDocID("TEC-ITB-").WillReturnError(kerr)
+	db.ExpectGet().WithDocID("TEC-ITB").WillReturnError(kerr)
+	db.ExpectGet().WithDocID("TEC-IT").WillReturnError(kerr)
+	db.ExpectGet().WithDocID("TEC-I").WillReturnError(kerr)
+	db.ExpectGet().WithDocID("TEC-").WillReturnError(kerr)
+	db.ExpectGet().WithDocID("TEC").WillReturnError(kerr)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	cs, err := NewWithClient(ctx, client)
+	if err != nil {
+		t.Fatalf("unable to create config service: %s", err)
+	}
+
+	_, _, err = cs.RoomAndControlGroup(ctx, "TEC-ITB-1101")
+	if kivik.StatusCode(err) != http.StatusNotFound {
+		t.Fatalf("got unexpected error: %s", err)
 	}
 }
 
