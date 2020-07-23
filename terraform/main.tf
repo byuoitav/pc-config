@@ -39,7 +39,7 @@ module "dev" {
   // required
   name           = "pc-config-dev"
   image          = "docker.pkg.github.com/byuoitav/pc-config/pc-config-dev"
-  image_version  = "86c3706"
+  image_version  = "77345b7"
   container_port = 8080
   repo_url       = "https://github.com/byuoitav/pc-config"
 
@@ -51,7 +51,7 @@ module "dev" {
   }
   container_args = [
     "--port", "8080",
-    "--log-level", "info", // set log level to info
+    "--log-level", "info",
     "--db-address", data.aws_ssm_parameter.couch_address.value,
     "--db-username", data.aws_ssm_parameter.couch_username.value,
     "--db-password", data.aws_ssm_parameter.couch_password.value,
@@ -64,8 +64,8 @@ module "prd" {
 
   // required
   name           = "pc-config"
-  image          = "docker.pkg.github.com/byuoitav/pc-config/pc-config-dev"
-  image_version  = "13fe972"
+  image          = "docker.pkg.github.com/byuoitav/pc-config/pc-config"
+  image_version  = "v0.1.0"
   container_port = 8080
   repo_url       = "https://github.com/byuoitav/pc-config"
 
@@ -77,9 +77,10 @@ module "prd" {
   }
   container_args = [
     "--port", "8080",
-    "--log-level", "0", // set log level to info
+    "--log-level", "info",
     "--db-address", data.aws_ssm_parameter.couch_address.value,
     "--db-username", data.aws_ssm_parameter.couch_username.value,
-    "--db-password", data.aws_ssm_parameter.couch_password.value
+    "--db-password", data.aws_ssm_parameter.couch_password.value,
+    "--key-service", "control-keys",
   ]
 }
