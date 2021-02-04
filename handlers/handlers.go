@@ -8,7 +8,6 @@ import (
 
 	pcconfig "github.com/byuoitav/pc-config"
 	"github.com/gin-gonic/gin"
-	"golang.org/x/sync/errgroup"
 )
 
 type Handlers struct {
@@ -26,27 +25,23 @@ func (h *Handlers) ConfigForPC(c *gin.Context) {
 		return
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
 	var config pcconfig.Config
 
-	// get the cameras
-	g.Go(func() error {
-		var err error
-		config.Cameras, err = h.ConfigService.Cameras(ctx, room, cg)
-		return err
-	})
-
-	// get the control key
-	g.Go(func() error {
-		var err error
-		config.ControlKey, err = h.ControlKeyService.ControlKey(ctx, room, cg)
-		return err
-	})
-
-	if err := g.Wait(); err != nil {
-		c.String(http.StatusInternalServerError, err.Error())
+	cameras, err := h.ConfigService.Cameras(ctx, room, cg)
+	if err != nil {
+		c.String(http.StatusInternalServerError, fmt.Sprintf("unable to get cameras: %s", err))
 		return
 	}
 
+	config.Cameras = cameras
+
+	key, err := h.ControlKeyService.ControlKey(ctx, room, cg)
+	if err != nil {
+		// ignore this error, just don't set the key
+		c.JSON(http.StatusOK, config)
+		return
+	}
+
+	config.ControlKey = key
 	c.JSON(http.StatusOK, config)
 }
