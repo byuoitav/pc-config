@@ -1,8 +1,8 @@
 terraform {
   backend "s3" {
-    bucket     = "terraform-state-storage-586877430255"
+    bucket         = "terraform-state-storage-586877430255"
     dynamodb_table = "terraform-state-lock-586877430255"
-    region     = "us-west-2"
+    region         = "us-west-2"
 
     // THIS MUST BE UNIQUE
     key = "pc-config.tfstate"
@@ -18,7 +18,8 @@ data "aws_ssm_parameter" "eks_cluster_endpoint" {
 }
 
 provider "kubernetes" {
-  host = data.aws_ssm_parameter.eks_cluster_endpoint.value
+  host        = data.aws_ssm_parameter.eks_cluster_endpoint.value
+  config_path = "~/.kube/config"
 }
 
 data "aws_ssm_parameter" "couch_address" {
@@ -64,8 +65,8 @@ module "prd" {
 
   // required
   name           = "pc-config"
-  image          = "docker.pkg.github.com/byuoitav/pc-config/pc-config"
-  image_version  = "v0.1.0"
+  image          = "docker.pkg.github.com/byuoitav/pc-config/pc-config-dev"
+  image_version  = "fb41a9a"
   container_port = 8080
   repo_url       = "https://github.com/byuoitav/pc-config"
 
